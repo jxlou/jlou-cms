@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JLou HTML Content Management System</title>
+  <link rel="stylesheet" href="styles.css?v=34" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">📝 JLou <span>Content Manager</span> <button id="versionBadge" class="version-badge" title="View version history">v34</button></div>
+    <div class="search-box">
+      <input id="searchInput" type="search" placeholder="🔍 Search all documents..." autocomplete="off" />
+      <div id="searchResults" class="search-results" hidden></div>
+    </div>
+    <div class="doc-controls">
+      <select id="docSelect" title="Open document"></select>
+      <select id="importSelect" title="Import a file as a new document">
+        <option value="" selected disabled>Import&hellip;</option>
+        <option value="txt">Text file (.txt)</option>
+        <option value="html">HTML file (.html)</option>
+        <option value="htmldir">HTML folder (.html + images)</option>
+        <option value="docx">Word document (.docx)</option>
+      </select>
+      <button id="newDocBtn" title="Create a new document">+ New</button>
+      <button id="renameDocBtn" title="Rename current document">Rename</button>
+      <button id="deleteDocBtn" class="danger" title="Delete current document">Delete</button>
+      <span class="sep"></span>
+      <button id="exportBtn" title="Export current document as a standalone .html file">Export .html</button>
+      <button id="backupBtn" title="Download ALL documents as a single .json backup file">Backup</button>
+      <button id="restoreBtn" title="Restore documents from a .json backup file">Restore</button>
+      <button id="libraryBtn" title="Browse and manage all documents in storage">Library</button>
+      <button id="syncBtn" title="Cloud sync (GitHub Gist)">☁ Sync <span class="sync-dot"></span></button>
+      <button id="helpBtn" title="Show the Welcome / Help page">Help</button>
+      <span class="save-state" id="saveState">Saved</span>
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- LEFT: Table of contents -->
+    <aside class="toc" id="tocPanel">
+      <div class="toc-head">Contents</div>
+      <ul id="tocList" class="toc-list"></ul>
+      <div class="toc-empty" id="tocEmpty">No headers yet. Use the <b>H1 / H2</b> buttons to add titles.</div>
+    </aside>
+
+    <!-- RIGHT: Editor -->
+    <main class="editor-wrap">
+      <input id="titleInput" class="title-input" type="text" placeholder="Document title..." />
+
+      <div class="toolbar" id="toolbar">
+        <button data-cmd="h1" title="Major title (appears in Contents)">H1</button>
+        <button data-cmd="h2" title="Sub title (appears in Contents)">H2</button>
+        <button data-cmd="p"  title="Normal paragraph">¶ Text</button>
+        <span class="sep"></span>
+        <button data-cmd="bold" title="Bold"><b>B</b></button>
+        <button data-cmd="italic" title="Italic"><i>I</i></button>
+        <button data-cmd="forecolor" class="btn-color" title="Text color"><span class="ico-a">A</span><span class="bar" id="foreBar"></span></button>
+        <button data-cmd="hilite" class="btn-color" title="Highlight color"><span class="ico-a ico-hl">A</span><span class="bar" id="hiliteBar"></span></button>
+        <button data-cmd="fontsize" class="btn-fs" title="Font size"><span class="ico-a">A</span><span class="fs-caret">▾</span></button>
+        <button data-cmd="ul" title="Bullet list">• List</button>
+        <button data-cmd="code" title="Code snippet block (black background)">&lt;/&gt; Code</button>
+        <span class="sep"></span>
+        <button data-cmd="image" title="Insert an image or SVG diagram (e.g. Lucidchart export)">🖼 Image / SVG</button>
+        <button data-cmd="attach" title="Attach any file (embedded)">📎 Attach</button>
+        <span class="hint">Tip: you can also paste images directly (Ctrl+V)</span>
+      </div>
+
+      <div id="editor" class="editor" contenteditable="true" spellcheck="true"></div>
+    </main>
+  </div>
+
+  <script src="mammoth.browser.min.js"></script>
+  <script src="app.js?v=34"></script>
+</body>
+</html>

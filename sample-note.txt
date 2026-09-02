@@ -1,0 +1,30 @@
+Project Notes - Sample
+
+This is a sample note file. Lines that are list items become headers
+(titles) in the generated HTML, and show up in the Contents panel.
+
+- Introduction
+This paragraph sits under the Introduction title.
+It can span multiple lines and stays as normal text.
+
+- Installation
+Follow these steps to install the tool.
+
+  - Windows
+Run the installer and follow the prompts.
+
+  - macOS
+Use the package manager to install.
+
+- Usage
+Here is a code example, written as a fenced block:
+
+```
+npm install
+npm run start
+```
+
+You can also use inline `code` and **bold** words in text.
+
+- Summary
+That is the end of the sample note.

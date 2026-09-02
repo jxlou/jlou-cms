@@ -1,0 +1,8 @@
+# Personal content — never publish. Notes live in the private Gist, not the repo.
+*-import.json
+JLouNotes*.json
+
+# OS / editor noise
+Thumbs.db
+.DS_Store
+*.log
