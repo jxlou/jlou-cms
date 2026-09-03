@@ -174,6 +174,7 @@
       "</ul>" +
       "<h2>Version history</h2>" +
       "<ul class=\"version-history\">" +
+      "<li><b>v36</b> - Cloud sync now handles <b>large libraries</b> (many MB with images): data is split into chunks and reassembled reliably, working around GitHub's gist size limits.</li>" +
       "<li><b>v35</b> - Cloud sync now shows a clear <b>toast</b> on every sync/create, times out instead of hanging, and can't get stuck - so you always see success or the exact error.</li>" +
       "<li><b>v34</b> - New <b>\u2601 Cloud sync</b>: keep your library in a private GitHub Gist and access it from any device (phone included), with automatic last-write-wins merging and delete tracking.</li>" +
       "<li><b>v33</b> - New <b>Font size</b> button (A▾) in the toolbar with a size menu (Small → Huge), applied as inline styles that persist on save/export.</li>" +
@@ -1964,33 +1965,67 @@ code{font-family:Consolas,monospace}`;
   const getSyncMeta = () => parseInt(localStorage.getItem(LS_SYNC_META) || "0", 10) || 0;
   function setSyncMeta(ms) { localStorage.setItem(LS_SYNC_META, String(ms)); }
 
-  // Pull the shared library from the gist. Returns {docs, tombstones}.
+  // ----- Chunked gist storage (keeps every file < 1 MB so it's inline & CORS-safe) -----
+  const GIST_PREFIX = "jlou-cms";      // chunk files: jlou-cms-000.json, jlou-cms-001.json ...
+  const CHUNK_LIMIT = 900000;          // ~0.9 MB per file (GitHub truncates >1 MB)
+  const CHUNK_RE = /^jlou-cms.*\.json$/;
+
+  // Split docs into groups whose serialized size stays under CHUNK_LIMIT.
+  function chunkDocs(docsObj) {
+    const chunks = [];
+    let cur = {}, curSize = 2, count = 0;
+    for (const id of Object.keys(docsObj)) {
+      const add = JSON.stringify(docsObj[id]).length + id.length + 6;
+      if (curSize + add > CHUNK_LIMIT && count > 0) { chunks.push(cur); cur = {}; curSize = 2; count = 0; }
+      cur[id] = docsObj[id]; curSize += add; count++;
+    }
+    if (count > 0 || chunks.length === 0) chunks.push(cur);
+    return chunks;
+  }
+  // Build the gist `files` object for a given state (tombstones ride in the first chunk).
+  function buildChunkFiles(state) {
+    const chunks = chunkDocs(state.docs || {});
+    const files = {};
+    chunks.forEach((c, i) => {
+      const name = GIST_PREFIX + "-" + String(i).padStart(3, "0") + ".json";
+      files[name] = { content: JSON.stringify({
+        type: "jlou-cms-chunk", version: 2, part: i, parts: chunks.length,
+        docs: c, tombstones: i === 0 ? (state.tombstones || {}) : undefined,
+      }) };
+    });
+    return files;
+  }
+
+  // Pull the shared library from the gist (reads every jlou-cms*.json chunk). Returns {docs, tombstones, fileNames}.
   async function syncPull() {
     const res = await fetchWithTimeout("https://api.github.com/gists/" + getGistId(), { headers: ghHeaders() });
     if (res.status === 401) throw new Error("Unauthorized \u2013 check your token.");
     if (res.status === 404) throw new Error("Gist not found \u2013 check the Gist ID.");
     if (!res.ok) throw new Error("GitHub API " + res.status);
     const data = await res.json();
-    const f = data.files && data.files[GIST_FILE];
-    if (!f) return { docs: {}, tombstones: {} };
-    let content = f.content;
-    if (f.truncated && f.raw_url) {
-      const raw = await fetchWithTimeout(f.raw_url, { headers: ghHeaders() }, 30000);
-      content = await raw.text();
+    const files = data.files || {};
+    const outDocs = {}, outTombs = {};
+    for (const [name, f] of Object.entries(files)) {
+      if (!CHUNK_RE.test(name) || !f) continue;
+      let content = f.content;
+      if (f.truncated && f.raw_url) { // over the gist inline budget -> fetch full content (CORS-open, no auth needed)
+        const raw = await fetchWithTimeout(f.raw_url, {}, 30000);
+        content = await raw.text();
+      }
+      let parsed = {};
+      try { parsed = JSON.parse(content || "{}"); } catch (_) { parsed = {}; }
+      Object.assign(outDocs, parsed.docs || {});
+      if (parsed.tombstones) Object.assign(outTombs, parsed.tombstones);
     }
-    let parsed = {};
-    try { parsed = JSON.parse(content || "{}"); } catch (_) { parsed = {}; }
-    return { docs: parsed.docs || {}, tombstones: parsed.tombstones || {} };
+    return { docs: outDocs, tombstones: outTombs, fileNames: Object.keys(files) };
   }
 
-  // Push the given {docs, tombstones} state to the gist.
-  async function syncPush(state) {
-    const body = { files: {} };
-    body.files[GIST_FILE] = {
-      content: JSON.stringify({ type: "jlou-cms-backup", version: 1, docs: state.docs, tombstones: state.tombstones }),
-    };
+  // Push state as chunk files, deleting any stale chunk files from a previous larger set.
+  async function syncPush(state, prevFileNames) {
+    const files = buildChunkFiles(state);
+    (prevFileNames || []).forEach((n) => { if (CHUNK_RE.test(n) && !files[n]) files[n] = null; });
     const res = await fetchWithTimeout("https://api.github.com/gists/" + getGistId(), {
-      method: "PATCH", headers: ghHeaders(), body: JSON.stringify(body),
+      method: "PATCH", headers: ghHeaders(), body: JSON.stringify({ files: files }),
     }, 30000);
     if (!res.ok) throw new Error("Push failed: GitHub API " + res.status);
   }
@@ -2050,7 +2085,7 @@ code{font-family:Consolas,monospace}`;
       const remote = await syncPull();
       const merged = mergeStates({ docs: docs, tombstones: tombstones }, remote);
       applyMerged(merged);
-      await syncPush(merged);
+      await syncPush(merged, remote.fileNames);
       setSyncMeta(Date.now());
       setSyncStatus("ok");
       updateSyncModal();
@@ -2141,10 +2176,7 @@ code{font-family:Consolas,monospace}`;
       const body = {
         description: "JLou Content Manager - synced library",
         public: false,
-        files: {},
-      };
-      body.files[GIST_FILE] = {
-        content: JSON.stringify({ type: "jlou-cms-backup", version: 1, docs: docs, tombstones: tombstones }),
+        files: buildChunkFiles({ docs: docs, tombstones: tombstones }),
       };
       const res = await fetchWithTimeout("https://api.github.com/gists", {
         method: "POST", headers: ghHeaders(), body: JSON.stringify(body),
