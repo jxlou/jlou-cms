@@ -174,6 +174,7 @@
       "</ul>" +
       "<h2>Version history</h2>" +
       "<ul class=\"version-history\">" +
+      "<li><b>v35</b> - Cloud sync now shows a clear <b>toast</b> on every sync/create, times out instead of hanging, and can't get stuck - so you always see success or the exact error.</li>" +
       "<li><b>v34</b> - New <b>\u2601 Cloud sync</b>: keep your library in a private GitHub Gist and access it from any device (phone included), with automatic last-write-wins merging and delete tracking.</li>" +
       "<li><b>v33</b> - New <b>Font size</b> button (A▾) in the toolbar with a size menu (Small → Huge), applied as inline styles that persist on save/export.</li>" +
       "<li><b>v32</b> - New <b>Text colour</b> (A) and <b>Highlight</b> buttons in the toolbar, each with a swatch palette plus a custom-colour picker.</li>" +
@@ -1923,6 +1924,30 @@ code{font-family:Consolas,monospace}`;
     };
   }
 
+  // fetch with an abort timeout so a hung request can never freeze sync (rejects instead).
+  function fetchWithTimeout(url, opts, ms) {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), ms || 20000);
+    return fetch(url, Object.assign({}, opts || {}, { signal: ctl.signal }))
+      .finally(() => clearTimeout(t));
+  }
+
+  // Small transient toast so sync results are always visible.
+  function toast(msg, kind) {
+    let el = document.getElementById("syncToast");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "syncToast";
+      el.className = "sync-toast";
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.style.background = kind === "error" ? "#dc2626" : (kind === "info" ? "#334155" : "#16a34a");
+    el.classList.add("show");
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.classList.remove("show"), 3200);
+  }
+
   function setSyncStatus(state, info) {
     const btn = $("#syncBtn");
     if (!btn) return;
@@ -1941,7 +1966,7 @@ code{font-family:Consolas,monospace}`;
 
   // Pull the shared library from the gist. Returns {docs, tombstones}.
   async function syncPull() {
-    const res = await fetch("https://api.github.com/gists/" + getGistId(), { headers: ghHeaders() });
+    const res = await fetchWithTimeout("https://api.github.com/gists/" + getGistId(), { headers: ghHeaders() });
     if (res.status === 401) throw new Error("Unauthorized \u2013 check your token.");
     if (res.status === 404) throw new Error("Gist not found \u2013 check the Gist ID.");
     if (!res.ok) throw new Error("GitHub API " + res.status);
@@ -1950,7 +1975,7 @@ code{font-family:Consolas,monospace}`;
     if (!f) return { docs: {}, tombstones: {} };
     let content = f.content;
     if (f.truncated && f.raw_url) {
-      const raw = await fetch(f.raw_url, { headers: ghHeaders() });
+      const raw = await fetchWithTimeout(f.raw_url, { headers: ghHeaders() }, 30000);
       content = await raw.text();
     }
     let parsed = {};
@@ -1964,9 +1989,9 @@ code{font-family:Consolas,monospace}`;
     body.files[GIST_FILE] = {
       content: JSON.stringify({ type: "jlou-cms-backup", version: 1, docs: state.docs, tombstones: state.tombstones }),
     };
-    const res = await fetch("https://api.github.com/gists/" + getGistId(), {
+    const res = await fetchWithTimeout("https://api.github.com/gists/" + getGistId(), {
       method: "PATCH", headers: ghHeaders(), body: JSON.stringify(body),
-    });
+    }, 30000);
     if (!res.ok) throw new Error("Push failed: GitHub API " + res.status);
   }
 
@@ -2016,8 +2041,9 @@ code{font-family:Consolas,monospace}`;
   // Full sync: pull -> merge -> apply -> push. `silent` suppresses pop-ups (used for auto-sync).
   async function syncNow(silent) {
     if (!syncConfigured()) { if (!silent) openSyncModal(); return; }
-    if (syncBusy) return;
+    if (syncBusy) { if (!silent) toast("A sync is already in progress\u2026", "info"); return; }
     syncBusy = true;
+    const watchdog = setTimeout(() => { syncBusy = false; }, 40000); // never stay stuck
     setSyncStatus("syncing");
     try {
       if (currentId && dirty) saveCurrent();
@@ -2028,12 +2054,15 @@ code{font-family:Consolas,monospace}`;
       setSyncMeta(Date.now());
       setSyncStatus("ok");
       updateSyncModal();
+      if (!silent) toast("Synced \u2713  " + Object.keys(docs).length + " document(s)");
     } catch (e) {
       console.error("Sync failed", e);
       setSyncStatus("error", e);
       updateSyncModal(e);
-      if (!silent) alert("Sync failed: " + (e && e.message ? e.message : e));
+      const msg = (e && e.name === "AbortError") ? "Network timed out" : (e && e.message ? e.message : String(e));
+      toast("Sync failed: " + msg, "error");
     } finally {
+      clearTimeout(watchdog);
       syncBusy = false;
     }
   }
@@ -2117,9 +2146,9 @@ code{font-family:Consolas,monospace}`;
       body.files[GIST_FILE] = {
         content: JSON.stringify({ type: "jlou-cms-backup", version: 1, docs: docs, tombstones: tombstones }),
       };
-      const res = await fetch("https://api.github.com/gists", {
+      const res = await fetchWithTimeout("https://api.github.com/gists", {
         method: "POST", headers: ghHeaders(), body: JSON.stringify(body),
-      });
+      }, 30000);
       if (!res.ok) throw new Error("GitHub API " + res.status);
       const data = await res.json();
       localStorage.setItem(LS_SYNC_GIST, data.id);
@@ -2128,9 +2157,12 @@ code{font-family:Consolas,monospace}`;
       setSyncMeta(Date.now());
       setSyncStatus("ok");
       flashSyncStatus("Gist created and library uploaded. Use this same token + Gist ID on your other devices.");
+      toast("Private gist created \u2713  Auto-sync is on.");
     } catch (e) {
       console.error(e);
-      flashSyncStatus("Could not create gist: " + (e && e.message ? e.message : e), true);
+      const msg = (e && e.name === "AbortError") ? "Network timed out" : (e && e.message ? e.message : String(e));
+      flashSyncStatus("Could not create gist: " + msg, true);
+      toast("Could not create gist: " + msg, "error");
     }
   }
 

@@ -352,6 +352,13 @@ mark.find-hl.current { background:#fb923c; color:#111; box-shadow:0 0 0 2px #fb9
 .sync-btn2.primary:hover { background:#1d4ed8; }
 .sync-btn2.danger { background:#fef2f2; border-color:#fecaca; color:#b91c1c; }
 .sync-status { font-size:12px; color:#334155; min-height:16px; margin-top:2px; }
+.sync-toast {
+  position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px);
+  background:#16a34a; color:#fff; padding:10px 16px; border-radius:9px; font-size:13px;
+  box-shadow:0 8px 24px rgba(0,0,0,.28); z-index:200; opacity:0; pointer-events:none;
+  transition:opacity .2s, transform .2s; max-width:88vw;
+}
+.sync-toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
 .bulk-overlay {
   position:fixed; inset:0; z-index:120; display:flex; align-items:center; justify-content:center;
   background:rgba(15,23,42,.45);
