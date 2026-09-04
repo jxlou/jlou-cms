@@ -4,11 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>JLou HTML Content Management System</title>
-  <link rel="stylesheet" href="styles.css?v=37" />
+  <link rel="stylesheet" href="styles.css?v=38" />
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">📝 JLou <span>Content Manager</span> <button id="versionBadge" class="version-badge" title="View version history">v37</button></div>
+    <div class="brand">📝 JLou <span>Content Manager</span> <button id="versionBadge" class="version-badge" title="View version history">v38</button></div>
     <div class="search-box">
       <input id="searchInput" type="search" placeholder="🔍 Search all documents..." autocomplete="off" />
       <div id="searchResults" class="search-results" hidden></div>
@@ -59,10 +59,12 @@
         <button data-cmd="hilite" class="btn-color" title="Highlight color"><span class="ico-a ico-hl">A</span><span class="bar" id="hiliteBar"></span></button>
         <button data-cmd="fontsize" class="btn-fs" title="Font size"><span class="ico-a">A</span><span class="fs-caret">▾</span></button>
         <button data-cmd="ul" title="Bullet list">• List</button>
+        <button data-cmd="table" title="Insert a table">▦ Table</button>
         <button data-cmd="code" title="Code snippet block (black background)">&lt;/&gt; Code</button>
         <span class="sep"></span>
         <button data-cmd="image" title="Insert an image or SVG diagram (e.g. Lucidchart export)">🖼 Image / SVG</button>
         <button data-cmd="attach" title="Attach any file (embedded)">📎 Attach</button>
+        <button data-cmd="find" title="Find in this page (Ctrl+F)">🔎 Find</button>
         <span class="hint">Tip: you can also paste images directly (Ctrl+V)</span>
       </div>
 
@@ -71,6 +73,6 @@
   </div>
 
   <script src="mammoth.browser.min.js"></script>
-  <script src="app.js?v=37"></script>
+  <script src="app.js?v=38"></script>
 </body>
 </html>

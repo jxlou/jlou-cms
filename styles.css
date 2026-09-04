@@ -322,6 +322,32 @@ mark.find-hl.current { background:#fb923c; color:#111; box-shadow:0 0 0 2px #fb9
 .fs-item:hover { background:#eef2ff; }
 .fs-item .fs-px { font-size:11px; color:#94a3b8; }
 
+/* ---- Insert-table popup ---- */
+.table-pop { padding:12px; min-width:190px; display:flex; flex-direction:column; gap:9px; }
+.table-pop .tp-row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.table-pop .tp-row label { font-size:13px; color:#374151; }
+.table-pop .tp-row input[type="number"] {
+  width:64px; padding:4px 6px; border:1px solid #cbd5e1; border-radius:6px; font-size:14px;
+}
+.table-pop .tp-check { display:flex; align-items:center; gap:6px; font-size:13px; color:#374151; }
+.table-pop .tp-insert {
+  margin-top:2px; padding:7px 10px; border:0; border-radius:6px; cursor:pointer;
+  background:var(--accent, #2563eb); color:#fff; font-size:14px; font-weight:600;
+}
+.table-pop .tp-insert:hover { filter:brightness(1.07); }
+
+/* ---- Tables inside documents ---- */
+.editor table.doc-table {
+  border-collapse:collapse; width:auto; max-width:100%; margin:14px 0;
+  font-size:15px;
+}
+.editor table.doc-table th, .editor table.doc-table td {
+  border:1px solid #cbd5e1; padding:7px 10px; vertical-align:top; min-width:40px;
+}
+.editor table.doc-table th {
+  background:#f1f5f9; font-weight:600; text-align:left;
+}
+
 /* ---- Cloud sync button + dialog ---- */
 #syncBtn { display:inline-flex; align-items:center; gap:6px; }
 .sync-dot { width:8px; height:8px; border-radius:50%; background:#94a3b8; display:inline-block; }

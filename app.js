@@ -174,6 +174,7 @@
       "</ul>" +
       "<h2>Version history</h2>" +
       "<ul class=\"version-history\">" +
+      "<li><b>v38</b> - New <b>▦ Table</b> button (pick rows/columns + optional header row) and a <b>🔎 Find</b> button in the toolbar so you can search within the current page - handy on mobile where Ctrl+F isn't available.</li>" +
       "<li><b>v37</b> - Fixed: editing the Welcome/Help page no longer gets wiped when you click <b>Help</b> again - your edits are kept, and the built-in Help only refreshes if you haven't changed it.</li>" +
       "<li><b>v36</b> - Cloud sync now handles <b>large libraries</b> (many MB with images): data is split into chunks and reassembled reliably, working around GitHub's gist size limits.</li>" +
       "<li><b>v35</b> - Cloud sync now shows a clear <b>toast</b> on every sync/create, times out instead of hanging, and can't get stuck - so you always see success or the exact error.</li>" +
@@ -473,9 +474,11 @@
       case "hilite": openColorPalette("hilite", btn); return;
       case "fontsize": openFontSizePalette(btn); return;
       case "ul": document.execCommand("insertUnorderedList"); break;
+      case "table": openTablePalette(btn); return;
       case "code": insertCodeBlock(); break;
       case "image": pickFile("image/*,.svg,image/svg+xml", insertDiagramFile); break;
       case "attach": pickFile("", insertAttachmentFromFile); break;
+      case "find": openFind(); return;
     }
     markDirty();
   }
@@ -603,6 +606,70 @@
       while (f.firstChild) span.appendChild(f.firstChild);
       f.replaceWith(span);
     });
+    markDirty();
+  }
+
+  // ----- Insert table -----
+  let tablePop = null;
+  function closeTablePalette() {
+    if (tablePop) { tablePop.remove(); tablePop = null; document.removeEventListener("mousedown", outsideCloseTable); }
+  }
+  function outsideCloseTable(e) { if (tablePop && !tablePop.contains(e.target)) closeTablePalette(); }
+
+  function openTablePalette(anchor) {
+    saveColorSel();
+    if (tablePop) { closeTablePalette(); return; }
+    tablePop = document.createElement("div");
+    tablePop.className = "color-pop table-pop";
+    tablePop.innerHTML =
+      '<div class="tp-row"><label>Rows</label>' +
+      '<input type="number" id="tpRows" min="1" max="50" value="3" /></div>' +
+      '<div class="tp-row"><label>Columns</label>' +
+      '<input type="number" id="tpCols" min="1" max="20" value="3" /></div>' +
+      '<label class="tp-check"><input type="checkbox" id="tpHead" checked /> Header row</label>' +
+      '<button type="button" id="tpInsert" class="tp-insert">Insert table</button>';
+    document.body.appendChild(tablePop);
+    const r = anchor.getBoundingClientRect();
+    const w = tablePop.offsetWidth || 200;
+    tablePop.style.left = Math.round(Math.min(r.left, window.innerWidth - w - 8)) + "px";
+    tablePop.style.top = Math.round(r.bottom + 4) + "px";
+    tablePop.querySelector("#tpInsert").addEventListener("click", () => {
+      const rows = Math.max(1, Math.min(50, parseInt(tablePop.querySelector("#tpRows").value, 10) || 1));
+      const cols = Math.max(1, Math.min(20, parseInt(tablePop.querySelector("#tpCols").value, 10) || 1));
+      const header = tablePop.querySelector("#tpHead").checked;
+      closeTablePalette();
+      insertTable(rows, cols, header);
+    });
+    setTimeout(() => document.addEventListener("mousedown", outsideCloseTable), 0);
+    setTimeout(() => { const f = tablePop && tablePop.querySelector("#tpRows"); if (f) f.focus(); }, 0);
+  }
+
+  function insertTable(rows, cols, header) {
+    let html = '<table class="doc-table"><tbody>';
+    let bodyRows = rows;
+    if (header) {
+      html += "<tr>";
+      for (let c = 0; c < cols; c++) html += "<th><br></th>";
+      html += "</tr>";
+      bodyRows = Math.max(0, rows - 1);
+    }
+    for (let r = 0; r < bodyRows; r++) {
+      html += "<tr>";
+      for (let c = 0; c < cols; c++) html += "<td><br></td>";
+      html += "</tr>";
+    }
+    html += "</tbody></table><p><br></p>";
+
+    editor.focus();
+    restoreColorSel();
+    insertHtmlAtCaret(html);
+    // Place the caret in the first cell so the user can start typing right away.
+    const tables = editor.querySelectorAll("table.doc-table");
+    const last = tables[tables.length - 1];
+    if (last) {
+      const firstCell = last.querySelector("th,td");
+      if (firstCell) placeCaretInside(firstCell);
+    }
     markDirty();
   }
   function pickFile(accept, cb) {
@@ -1589,6 +1656,9 @@
 h1,h2{color:#b91c1c;font-weight:800}
 h1{border-bottom:2px solid #f0d0d0;padding-bottom:4px}
 pre.code-block{background:#000;color:#fff;padding:14px 16px;border-radius:8px;overflow-x:auto;font-family:Consolas,monospace;white-space:pre-wrap}
+table.doc-table{border-collapse:collapse;margin:14px 0;font-size:15px}
+table.doc-table th,table.doc-table td{border:1px solid #cbd5e1;padding:7px 10px;vertical-align:top}
+table.doc-table th{background:#f1f5f9;font-weight:600;text-align:left}
 img{max-width:100%;height:auto;border-radius:6px}
 a.attachment{display:inline-block;background:#eef2ff;border:1px solid #d6e0ff;border-radius:6px;padding:4px 10px;color:#2563eb;text-decoration:none}
 .cms-toc-hidden{display:none}
@@ -2240,7 +2310,7 @@ code{font-family:Consolas,monospace}`;
   // ---------- Wire up UI ----------
   $("#toolbar").addEventListener("mousedown", (e) => {
     // Keep the editor selection when opening a colour palette (button won't steal focus).
-    const cb = e.target.closest('button[data-cmd="forecolor"],button[data-cmd="hilite"],button[data-cmd="fontsize"]');
+    const cb = e.target.closest('button[data-cmd="forecolor"],button[data-cmd="hilite"],button[data-cmd="fontsize"],button[data-cmd="table"]');
     if (cb) { saveColorSel(); e.preventDefault(); }
   });
   $("#toolbar").addEventListener("click", (e) => {
