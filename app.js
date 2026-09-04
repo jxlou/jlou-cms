@@ -174,6 +174,7 @@
       "</ul>" +
       "<h2>Version history</h2>" +
       "<ul class=\"version-history\">" +
+      "<li><b>v37</b> - Fixed: editing the Welcome/Help page no longer gets wiped when you click <b>Help</b> again - your edits are kept, and the built-in Help only refreshes if you haven't changed it.</li>" +
       "<li><b>v36</b> - Cloud sync now handles <b>large libraries</b> (many MB with images): data is split into chunks and reassembled reliably, working around GitHub's gist size limits.</li>" +
       "<li><b>v35</b> - Cloud sync now shows a clear <b>toast</b> on every sync/create, times out instead of hanging, and can't get stuck - so you always see success or the exact error.</li>" +
       "<li><b>v34</b> - New <b>\u2601 Cloud sync</b>: keep your library in a private GitHub Gist and access it from any device (phone included), with automatic last-write-wins merging and delete tracking.</li>" +
@@ -205,18 +206,37 @@
       "</ul>";
   }
 
-  // Open the Welcome/Help page: reuse an existing "Welcome" doc, else create one.
+  // Open the Welcome/Help page. Auto-refresh the built-in content only when the page
+  // is untouched; if the user has edited it, keep their version (never overwrite).
+  function helpHash(s) {
+    let h = 5381;
+    for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+    return String(h);
+  }
   function showHelp() {
     saveCurrent();
-    const existing = Object.values(docs).find((d) => d.title === "Welcome");
-    if (existing) {
-      existing.html = welcomeHtml();
+    let existing = Object.values(docs).find((d) => d.help) ||
+                   Object.values(docs).find((d) => d.title === "Welcome");
+    if (!existing) {
+      const id = uid();
+      const gen = welcomeHtml();
+      docs[id] = { id, title: "Welcome", html: gen, updated: Date.now(), help: true, helpHash: helpHash(gen) };
+      persistSafe();
+      refreshDocSelect();
+      openDoc(id);
+      return;
+    }
+    existing.help = true; // mark it so we can find it by identity, not by title
+    const gen = welcomeHtml();
+    // Refresh to the newest built-in Help only if the stored content is exactly what we
+    // last generated (i.e. the user hasn't modified it). Otherwise, preserve their edits.
+    if (existing.helpHash && helpHash(existing.html) === existing.helpHash) {
+      existing.html = gen;
+      existing.helpHash = helpHash(gen);
       existing.updated = Date.now();
       persistSafe();
-      openDoc(existing.id);
-    } else {
-      newDoc("Welcome", welcomeHtml());
     }
+    openDoc(existing.id);
   }
 
   function newDoc(title, html) {

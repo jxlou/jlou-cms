@@ -1,5 +1,9 @@
 # Personal content — never publish. Notes live in the private Gist, not the repo.
+# These can contain real secrets from your notes; keep them out of the repo.
 *-import.json
+*-backup-*.json
+*backup*.json
+jlou-cms-backup*.json
 JLouNotes*.json
 
 # OS / editor noise
